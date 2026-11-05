@@ -1,0 +1,62 @@
+import numpy as np
+from PIL import Image, ImageOps
+from multiprocessing import Pool
+import time
+
+
+def okno3x3(img, y, x):
+    h, w = img.shape
+    okno = []
+    for dy in (-1, 0, 1):
+        yy = min(max(y + dy, 0), h - 1)
+        wiersz = []
+        for dx in (-1, 0, 1):
+            xx = min(max(x + dx, 0), w - 1)
+            wiersz.append(img[yy, xx])
+        okno.append(wiersz)
+    return np.array(okno)
+
+def sobel(obraz):
+    frag, y_start, y_end = obraz
+    h, w = frag.shape
+    wynik = np.zeros((y_end - y_start, w))
+
+    sobel_mask_x = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
+    sobel_mask_y = np.array([[-1, -2, -1], [0, 0, 0], [1, 2, 1]])
+
+    for y in range(y_start,y_end):
+        for x in range(w):
+            o = okno3x3(frag, y, x)
+            G_x = np.sum(o * sobel_mask_x)
+            G_y = np.sum(o * sobel_mask_y)
+            wynik[y-y_start,x] = np.sqrt(G_x**2 + G_y**2)
+
+    return wynik
+
+if "__main__"==__name__:
+    for i in range(4,9):
+        img = Image.open("Valve_original_(1).png")
+        img_G = ImageOps.grayscale(img)
+
+        frag=np.array(img_G,dtype=float)
+
+        h=frag.shape[0]
+
+        n=i
+
+        granice = np.linspace(0, h, n+1, dtype=int)
+        zadania = []
+        for x in range(n):
+            a = max(0, granice[x] - 1)
+            b = min(h, granice[x + 1] + 1)
+            zadania.append((frag[a:b], granice[x] - a, granice[x + 1] - a))
+
+        start=time.time()
+        with Pool(n) as p:
+            pas=p.map(sobel,zadania)
+
+        wynik=np.vstack(pas)
+        wynik = wynik / wynik.max() * 255
+        print(f"Podział:{i} {time.time()-start}")
+
+    Image.fromarray(wynik.astype(np.uint8)).save("TEST2.jpg")
